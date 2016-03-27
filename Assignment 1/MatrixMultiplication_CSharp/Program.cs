@@ -101,8 +101,8 @@ namespace MatrixMultiplication_CSharp
                 Console.WriteLine();
                 Console.WriteLine("1. Multiplication");
                 Console.WriteLine("2. Line Multiplication");
-                Console.WriteLine("3. Multiplication (Parallel)");
-                Console.WriteLine("4. Line Multiplication (Parallel)");
+                //Console.WriteLine("3. Multiplication (Parallel)");
+                //Console.WriteLine("4. Line Multiplication (Parallel)");
                 Console.Write("Selection ?: ");
                 selectedOption = int.Parse(Console.ReadLine());
                 if (selectedOption < 1 || selectedOption > 4)

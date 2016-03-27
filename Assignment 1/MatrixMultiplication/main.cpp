@@ -62,6 +62,59 @@ void LineColMultiplication(int dimension)
 	free(matrixC);
 }
 
+void LineColMultiplicationParallel(int dimension)
+{
+	double *matrixA, *matrixB, *matrixC;
+
+	matrixA = (double *)malloc((dimension * dimension) * sizeof(double));
+	matrixB = (double *)malloc((dimension * dimension) * sizeof(double));
+	matrixC = (double *)malloc((dimension * dimension) * sizeof(double));
+
+	for (int row = 0; row < dimension; row++)
+		for (int col = 0; col < dimension; col++)
+		{
+			matrixA[row * dimension + col] = (double)1.0;
+			matrixB[row * dimension + col] = (double)(row + 1);
+			matrixC[row * dimension + col] = (double)0.0;
+		}
+
+	SYSTEMTIME beginTime = clock();
+	int row = 0, col = 0, auxRow = 0;
+	double tempSum = 0.0;
+
+#pragma omp parallel for //private(col) private(tempSum)private(auxRow) 
+	for (row = 0; row < dimension; row++)
+	{
+#pragma omp parallel for private(tempSum) private(auxRow)
+		for (col = 0; col < dimension; col++)
+		{
+			tempSum = 0;
+			for (auxRow = 0; auxRow < dimension; auxRow++)
+				tempSum += matrixA[row * dimension + auxRow] * matrixB[auxRow * dimension + col];
+
+			matrixC[row * dimension + col] = tempSum;
+		}
+	}
+
+	SYSTEMTIME endTime = clock();
+	char executionTimeString[100];
+	cout << endl << "Dimensions: " << dimension << "x" << dimension << endl;
+	sprintf_s(executionTimeString, "Time: %3.3f seconds\n", (double)(endTime - beginTime) / CLOCKS_PER_SEC);
+	cout << executionTimeString;
+
+	cout << "Result matrix: " << endl;
+	for (int row = 0; row < 1; row++)
+	{
+		for (int col = 0; col < min(10, dimension); col++)
+			cout << matrixC[col] << " ";
+	}
+	cout << endl;
+
+	// Free allocated memory for the matrices
+	free(matrixA);
+	free(matrixB);
+	free(matrixC);
+}
 
 void LineLineMultiplication(int dimension)
 {
@@ -81,7 +134,7 @@ void LineLineMultiplication(int dimension)
 
 
 	SYSTEMTIME beginTime = clock();
-	double tempSum;
+	double tempSum = 0.0;
 
 	for (int row = 0; row < dimension; row++)
 	{
@@ -114,9 +167,63 @@ void LineLineMultiplication(int dimension)
 	free(matrixC);
 }
 
+void LineLineMultiplicationParallel(int dimension)
+{
+	int row = 0, j = 0;
+	double *matrixA, *matrixB, *matrixC;
+
+	matrixA = (double *)malloc((dimension * dimension) * sizeof(double));
+	matrixB = (double *)malloc((dimension * dimension) * sizeof(double));
+	matrixC = (double *)malloc((dimension * dimension) * sizeof(double));
+
+	for (row = 0; row < dimension; row++)
+		for (int col = 0; col < dimension; col++)
+		{
+			matrixA[row * dimension + col] = (double)1.0;
+			matrixB[row * dimension + col] = (double)(row + 1);
+			matrixC[row * dimension + col] = (double)0;
+		}
+
+
+	SYSTEMTIME beginTime = clock();
+	double tempSum = 0.0;
+
+	#pragma omp parallel for private(j)
+	for (row = 0; row < dimension; row++)
+	{
+		for (j = 0; j < dimension; j++)
+		{
+			#pragma omp parallel for
+			for (int k = 0; k < dimension; k++)
+			{
+				matrixC[row * dimension + k] += matrixA[row * dimension + j] * matrixB[j * dimension + k];
+			}
+		}
+	}
+
+	SYSTEMTIME endTime = clock();
+	char executionTimeString[100];
+	cout << endl << "Dimensions: " << dimension << "x" << dimension << endl;
+	sprintf_s(executionTimeString, "Time: %3.3f seconds\n", (double)(endTime - beginTime) / CLOCKS_PER_SEC);
+	cout << executionTimeString;
+
+	cout << "Result matrix: " << endl;
+	for (int row = 0; row < 1; row++)
+	{
+		for (int col = 0; col < min(10, dimension); col++)
+			cout << matrixC[col] << " ";
+	}
+	cout << endl;
+
+	// Free allocated memory for the matrices
+	free(matrixA);
+	free(matrixB);
+	free(matrixC);
+}
+
 int main(int argc, char *argv[])
 {
-	int matrixDimension, matrixMaxDimension, matrixIncrement;
+	int matrixDimension = 0, matrixMaxDimension = 0, matrixIncrement = 0;
 	int selectedOption;
 
 	// PAPI: Cdimensionall init handlers here
@@ -135,8 +242,11 @@ int main(int argc, char *argv[])
 		cin >> matrixDimension;
 		cout << "Ending dimension?: ";
 		cin >> matrixMaxDimension;
-		cout << "Increment?: ";
-		cin >> matrixIncrement;
+		if (matrixDimension < matrixMaxDimension)
+		{
+			cout << "Increment?: ";
+			cin >> matrixIncrement;
+		}
 
 		if (matrixIncrement <= 0)
 			matrixIncrement = 1000;
@@ -152,6 +262,12 @@ int main(int argc, char *argv[])
 				break;
 			case 2:
 				LineLineMultiplication(matrixDimension);
+				break;
+			case 3:
+				LineColMultiplicationParallel(matrixDimension);
+				break;
+			case 4:
+				LineLineMultiplicationParallel(matrixDimension);
 				break;
 			}
 

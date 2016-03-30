@@ -84,13 +84,13 @@ void LineLineMultiplication(int dimension)
 	SYSTEMTIME beginTime = clock();
 	double tempSum = 0.0;
 
-	for (int row = 0; row < dimension; row++)
+	for (int i = 0; i < dimension; i++)
 	{
-		for (int col = 0; col < dimension; col++)
+		for (int j = 0; j < dimension; j++)
 		{
-			for (int auxCol = 0; auxCol < dimension; auxCol++)
+			for (int k = 0; k < dimension; k++)
 			{
-				matrixC[row * dimension + auxCol] += matrixA[row * dimension + col] * matrixB[col * dimension + auxCol];
+				matrixC[i * dimension + k] += matrixA[i * dimension + j] * matrixB[j * dimension + k];
 			}
 		}
 	}
@@ -177,7 +177,7 @@ void LineColMultiplicationParallel(int dimension)
 
 void LineLineMultiplicationParallel(int dimension)
 {
-	int row = 0, j = 0;
+	int i = 0, j = 0;
 	double *matrixA, *matrixB, *matrixC;
 
 	matrixA = (double *)malloc((dimension * dimension) * sizeof(double));
@@ -186,12 +186,12 @@ void LineLineMultiplicationParallel(int dimension)
 
 	for (int threads = 1; threads <= 4; threads++)
 	{
-		for (row = 0; row < dimension; row++)
+		for (i = 0; i < dimension; i++)
 			for (int col = 0; col < dimension; col++)
 			{
-				matrixA[row * dimension + col] = (double)1.0;
-				matrixB[row * dimension + col] = (double)(row + 1);
-				matrixC[row * dimension + col] = (double)0;
+				matrixA[i * dimension + col] = (double)1.0;
+				matrixB[i * dimension + col] = (double)(i + 1);
+				matrixC[i * dimension + col] = (double)0;
 			}
 
 
@@ -201,14 +201,14 @@ void LineLineMultiplicationParallel(int dimension)
 		omp_set_num_threads(threads);
 
 #pragma omp parallel for private(j)
-		for (row = 0; row < dimension; row++)
+		for (i = 0; i < dimension; i++)
 		{
 			for (j = 0; j < dimension; j++)
 			{
 #pragma omp parallel for
 				for (int k = 0; k < dimension; k++)
 				{
-					matrixC[row * dimension + k] += matrixA[row * dimension + j] * matrixB[j * dimension + k];
+					matrixC[i * dimension + k] += matrixA[i * dimension + j] * matrixB[j * dimension + k];
 				}
 			}
 		}

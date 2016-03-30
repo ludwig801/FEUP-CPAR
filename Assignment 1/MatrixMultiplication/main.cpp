@@ -133,16 +133,15 @@ void LineColMultiplicationParallel(int dimension)
 				matrixC[row * dimension + col] = (double)0.0;
 			}
 
-		SYSTEMTIME beginTime = clock();
+		double beginTime = omp_get_wtime();
 		int row = 0, col = 0, auxRow = 0;
 		double tempSum = 0.0;
 
 		omp_set_num_threads(threads);
 
-#pragma omp parallel for //private(col) private(tempSum)private(auxRow) 
+#pragma omp parallel for private(col) private(tempSum) private(auxRow)
 		for (row = 0; row < dimension; row++)
 		{
-#pragma omp parallel for private(tempSum) private(auxRow)
 			for (col = 0; col < dimension; col++)
 			{
 				tempSum = 0;
@@ -153,11 +152,11 @@ void LineColMultiplicationParallel(int dimension)
 			}
 		}
 
-		SYSTEMTIME endTime = clock();
+		double endTime = omp_get_wtime();
 		char executionTimeString[100];
 		cout << endl << "Threads: " << threads << endl;
 		cout << "Dimensions: " << dimension << "x" << dimension << endl;
-		sprintf(executionTimeString, "Time: %3.3f seconds\n", (double)(endTime - beginTime) / CLOCKS_PER_SEC);
+		sprintf(executionTimeString, "Time: %3.3f seconds\n", (double)(endTime - beginTime));
 		cout << executionTimeString;
 
 		cout << "Result matrix: " << endl;
@@ -177,7 +176,7 @@ void LineColMultiplicationParallel(int dimension)
 
 void LineLineMultiplicationParallel(int dimension)
 {
-	int i = 0, j = 0;
+	int i = 0, j = 0, k = 0;
 	double *matrixA, *matrixB, *matrixC;
 
 	matrixA = (double *)malloc((dimension * dimension) * sizeof(double));
@@ -195,29 +194,28 @@ void LineLineMultiplicationParallel(int dimension)
 			}
 
 
-		SYSTEMTIME beginTime = clock();
+		double beginTime = omp_get_wtime();
 		double tempSum = 0.0;
 
 		omp_set_num_threads(threads);
 
-#pragma omp parallel for private(j)
+#pragma omp parallel for private(j) private(k)
 		for (i = 0; i < dimension; i++)
 		{
 			for (j = 0; j < dimension; j++)
 			{
-#pragma omp parallel for
-				for (int k = 0; k < dimension; k++)
+				for (k = 0; k < dimension; k++)
 				{
 					matrixC[i * dimension + k] += matrixA[i * dimension + j] * matrixB[j * dimension + k];
 				}
 			}
 		}
 
-		SYSTEMTIME endTime = clock();
+		double endTime = omp_get_wtime();
 		char executionTimeString[100];
 		cout << endl << "Threads: " << threads << endl;
 		cout << "Dimensions: " << dimension << "x" << dimension << endl;
-		sprintf(executionTimeString, "Time: %3.3f seconds\n", (double)(endTime - beginTime) / CLOCKS_PER_SEC);
+		sprintf(executionTimeString, "Time: %3.3f seconds\n", (double)(endTime - beginTime));
 		cout << executionTimeString;
 
 		cout << "Result matrix: " << endl;

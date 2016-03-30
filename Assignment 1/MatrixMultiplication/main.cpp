@@ -5,7 +5,9 @@
 #include <time.h>
 #include <cstdlib>
 #include <algorithm>
-//#include <papi.h> // <-- Uncomment to use PAPI
+#ifdef __gnu_linux__
+	#include <papi.h>
+#endif
 
 using namespace std;
 
@@ -45,7 +47,7 @@ void LineColMultiplication(int dimension)
 	SYSTEMTIME endTime = clock();
 	char executionTimeString[100];
 	cout << endl << "Dimensions: " << dimension << "x" << dimension << endl;
-	sprintf_s(executionTimeString, "Time: %3.3f seconds\n", (double)(endTime - beginTime) / CLOCKS_PER_SEC);
+	sprintf(executionTimeString, "Time: %3.3f seconds\n", (double)(endTime - beginTime) / CLOCKS_PER_SEC);
 	cout << executionTimeString;
 
 	cout << "Result matrix: " << endl;
@@ -96,7 +98,7 @@ void LineLineMultiplication(int dimension)
 	SYSTEMTIME endTime = clock();
 	char executionTimeString[100];
 	cout << endl << "Dimensions: " << dimension << "x" << dimension << endl;
-	sprintf_s(executionTimeString, "Time: %3.3f seconds\n", (double)(endTime - beginTime) / CLOCKS_PER_SEC);
+	sprintf(executionTimeString, "Time: %3.3f seconds\n", (double)(endTime - beginTime) / CLOCKS_PER_SEC);
 	cout << executionTimeString;
 
 	cout << "Result matrix: " << endl;
@@ -155,7 +157,7 @@ void LineColMultiplicationParallel(int dimension)
 		char executionTimeString[100];
 		cout << endl << "Threads: " << threads << endl;
 		cout << "Dimensions: " << dimension << "x" << dimension << endl;
-		sprintf_s(executionTimeString, "Time: %3.3f seconds\n", (double)(endTime - beginTime) / CLOCKS_PER_SEC);
+		sprintf(executionTimeString, "Time: %3.3f seconds\n", (double)(endTime - beginTime) / CLOCKS_PER_SEC);
 		cout << executionTimeString;
 
 		cout << "Result matrix: " << endl;
@@ -215,7 +217,7 @@ void LineLineMultiplicationParallel(int dimension)
 		char executionTimeString[100];
 		cout << endl << "Threads: " << threads << endl;
 		cout << "Dimensions: " << dimension << "x" << dimension << endl;
-		sprintf_s(executionTimeString, "Time: %3.3f seconds\n", (double)(endTime - beginTime) / CLOCKS_PER_SEC);
+		sprintf(executionTimeString, "Time: %3.3f seconds\n", (double)(endTime - beginTime) / CLOCKS_PER_SEC);
 		cout << executionTimeString;
 
 		cout << "Result matrix: " << endl;

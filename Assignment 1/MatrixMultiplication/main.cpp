@@ -238,7 +238,26 @@ int main(int argc, char *argv[])
 	int matrixDimension = 0, matrixMaxDimension = 0, matrixIncrement = 0;
 	int selectedOption;
 
-	// PAPI: Cdimensionall init handlers here
+#ifdef __gnu_linux__
+	int EventSet = PAPI_NULL;
+	long long papiValues[2];
+	int ret;
+
+	ret = PAPI_library_init( PAPI_VER_CURRENT );
+	if ( ret != PAPI_VER_CURRENT )
+		std::cout << "FAILURE initializing PAPI library" << endl;
+
+	ret = PAPI_create_eventset(&EventSet);
+		if (ret != PAPI_OK) cout << "ERROR: create eventset" << endl;
+
+
+	ret = PAPI_add_event(EventSet,PAPI_L1_DCM );
+	if (ret != PAPI_OK) cout << "ERROR: PAPI_L1_DCM" << endl;
+
+
+	ret = PAPI_add_event(EventSet,PAPI_L2_DCM);
+	if (ret != PAPI_OK) cout << "ERROR: PAPI_L2_DCM" << endl;
+#endif
 
 	selectedOption = 1;
 	do {
@@ -265,7 +284,10 @@ int main(int argc, char *argv[])
 
 		for (; matrixDimension <= matrixMaxDimension; matrixDimension += matrixIncrement)
 		{
-			// PAPI: Start counting events here
+#ifdef __gnu_linux__
+			ret = PAPI_start(EventSet);
+			if (ret != PAPI_OK) cout << "ERROR: Start PAPI" << endl;
+#endif
 
 			switch (selectedOption)
 			{
@@ -283,11 +305,28 @@ int main(int argc, char *argv[])
 				break;
 			}
 
-			// PAPI: Stop and reset event counter here
+#ifdef __gnu_linux__
+			ret = PAPI_stop(EventSet, papiValues);
+  			if (ret != PAPI_OK) cout << "ERROR: Stop PAPI" << endl;
+  			printf("L1 DCM: %lld \n",papiValues[0]);
+  			printf("L2 DCM: %lld \n",papiValues[1]);
+#endif
 		}
 	} while (selectedOption >= 1 && selectedOption <= 4);
 
-	// PAPI: Destroy event handlers here
+#ifdef __gnu_linux__
+	ret = PAPI_remove_event( EventSet, PAPI_L1_DCM );
+	if ( ret != PAPI_OK )
+		std::cout << "FAILURE removing event" << endl; 
+
+	ret = PAPI_remove_event( EventSet, PAPI_L2_DCM );
+	if ( ret != PAPI_OK )
+		std::cout << "FAILURE removing event" << endl; 
+
+	ret = PAPI_destroy_eventset( &EventSet );
+	if ( ret != PAPI_OK )
+		std::cout << "FAILURE destroying event set" << endl;
+#endif
 
 	return 0;
 }

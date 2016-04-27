@@ -52,23 +52,43 @@ int parallelSieve(int calcLimit) {
 	for (int i = 0; i <= calcLimit; i++)
 		unmarked[i] = true;
 
-	int numThreads = omp_get_num_threads();
-	int step = calcLimit / numThreads;
+	omp_set_dynamic(0);
+
+	int numThreads = 4;
+	int sqrtCalcLimit = (int)sqrt(calcLimit);
 
 	double begin = omp_get_wtime();
 
-#pragma omp parallel for private(j)
-	for (int i = (omp_get_thread_num() * step) + 1; i <= omp_get_thread_num() * (step + 1); i++) {
-		if (i < 2)
-			continue;
-		
-		if (!unmarked[i])
-			continue;
+	omp_set_num_threads(numThreads);
 
-		for (int j = 2; i * j <= calcLimit; j++) {
-			unmarked[i * j] = false;
-		}
-	}
+		for (int i = 2; i <= sqrtCalcLimit; i++) {
+			
+			if (!unmarked[i])
+				continue;
+	
+			int max = calcLimit / i;
+			int threadStep = max / numThreads;
+			int r = max % numThreads;
+	
+			//cout << "i: " << i << " | step: " << threadStep << " | r: " << r;
+			//cout << endl;
+	
+	#pragma omp parallel num_threads(numThreads)
+			{
+				int thread = omp_get_thread_num();
+				int min = fmax(threadStep * thread + 1, 2);
+				int max = threadStep * (thread + 1);
+				if (thread == numThreads - 1)
+					max += r;
+	
+				//cout << "> thread: " << thread << " | window: " << min << "-" << max;
+				//cout << endl;
+
+				for (int j = min; j <= max; j++) {
+					unmarked[i * j] = false;
+				}
+			}
+      }
 
 	double end = omp_get_wtime();
 

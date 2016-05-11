@@ -1,232 +1,146 @@
 #include <iostream>
-#include <stdio.h>
 #include <math.h>
+#include <stdlib.h>
 #include "mpi.h"
 
 using namespace std;
 
 #define SYSTEMTIME clock_t
 
+#define MY_TYPE unsigned long long
+
 void printBoolArray(bool *array, int length) {
 	cout << "Array: ";
-	for (int i = 0; i < length; i++) {
-		cout << (array[i] == true ? "true" : "false") << " ";
+	int count = 0;
+	for (int i = length - 1; count < 10 && i >= 2; i--) {
+		if(array[i]) {
+			cout << i << " ";
+			count++;
+		}
 	}
 	cout << endl;
 }
 
-int calculatePrimesFor(int limit, int rank, int nProcesses, int currentNumber, bool *primes, int length) {
+int calculatePrimesFor(int limit, int rank, int nProcesses, int currentNumber, bool *primes) {
 
-	int calcsPerProcess = ((limit / currentNumber) - 1) / nProcesses;
-	int offset = 2 + rank * calcsPerProcess;
-	int max = offset + calcsPerProcess;
+	int arrayLength = limit + 1;
+	float calculations = (limit / currentNumber) - 1;
+	int step = (int) ceil(calculations / nProcesses);
+	
+	int min = 2 + rank * step;
+	int max = min + step;
 
-	for (int i = offset; i <= max; i++) {
-		primes[i * currentNumber] = false;
-	}
-
-	return 0;
-}
-
-int distributedSieve2(int limit, int rank, int nProcesses) {
-	MPI_Status status;
-
-	int currentNumber;
-	int nLimit = (int)sqrt(limit);
-	int size = limit + 1;
-	bool *primes = new bool[size];
-
-	for (int i = 0; i < size; i++) {
-		primes[i] = true;
-	}
-
-	if (rank == 0) {
-		bool isNextPrime = true;
-		currentNumber = 2;
-
-		while (currentNumber <= nLimit) {
-
-			// Send the currentNumber "in the table"
-			for (int i = 1; i < nProcesses; i++) {
-				MPI_Send(&currentNumber, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-			}
-
-			isNextPrime = primes[currentNumber + 1];
-
-			// Get other processes' responses to the number sent:
-			// - If at least one other process has defined the next number as non-prime,
-			//   we should not calculate it
-			for (int i = 1; i < nProcesses; i++) {
-				bool otherIsNextPrime;
-				MPI_Recv(&otherIsNextPrime, 1, MPI_CHAR, i, 0, MPI_COMM_WORLD, &status);
-
-				isNextPrime = isNextPrime && otherIsNextPrime;
-			}
-
-			// Send the decision for next number (to calculate or move to the next one)
-			for (int i = 1; i < nProcesses; i++) {
-				MPI_Send(&isNextPrime, 1, MPI_CHAR, i, 0, MPI_COMM_WORLD);
-			}
-
-			if (!isNextPrime)
-				continue;
-
-			calculatePrimesFor(limit, rank, nProcesses, currentNumber, primes, size);
-
-			currentNumber++;
+	for (int i = min; i < max; i++) {
+		int index = i * currentNumber;
+		
+		if(index < arrayLength) {
+			primes[index] = false;
 		}
-
-		MPI_Send(&currentNumber, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-
-		bool *otherPrimes = new bool[size];
-
-		for (int i = 1; i < nProcesses; i++) {
-			
-			MPI_Recv(&otherPrimes[0], size, MPI_CHAR, i, 0, MPI_COMM_WORLD, &status);
-
-			for (int j = 0; j < size; i++) {
-				primes[j] = primes[j] && otherPrimes[j];
-			}
-		}
-
-		delete(otherPrimes);
-
-		printArray(primes, size);
 	}
-	else {
-		do {
-			MPI_Recv(&currentNumber, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-
-			if (currentNumber > nLimit)
-				continue;
-
-			calculatePrimesFor(limit, rank, nProcesses, currentNumber, primes, size);
-
-			MPI_Send(&primes[currentNumber + 1], 1, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-
-		} while (currentNumber >= 0 && currentNumber <= nLimit);
-
-		// Here we synchronize all primes calculated
-		MPI_Send(&primes[0], size, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-	}
-
-	delete(primes);
-
+	
 	return 0;
 }
 
 int distributedSieve(int limit, int rank, int nProcesses) {
 	MPI_Status status;
 
+	int currentNumber = 2;
+	int nLimit = (int)sqrt(limit);
 	int size = limit + 1;
+	bool isNextPrime = true;
 	bool *primes = new bool[size];
 
 	for (int i = 0; i < size; i++) {
 		primes[i] = true;
 	}
 
+	// Parent process
 	if (rank == 0) {
-		bool *iPrimes = new bool[size];
-		int sqrtLimit = (int)sqrt(limit);
-
-		for (int i = 0; i < size; i++) {
-			iPrimes[i] = true;
-		}
-
-		int finish = sqrtLimit;
-
-		for (int n = 2; n <= finish; n++) {
-			int response = 1;
-
-			if (n == finish) {
-				response = 0;
-
-				for (int i = 1; i < nProcesses; i++) {
-					MPI_Send(&response, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-				}
-			}
-			else {
-				for (int i = 1; i < nProcesses; i++) {
-					MPI_Send(&response, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-				}
-			}
-
-			if (!primes[n])
-			{
-				cout << n << " was marked as being NON-prime" << endl;
-				continue;
-			}
-
-			int max = limit / n;
-			int nStep = max / nProcesses;
-			int r = max % nProcesses;
-
-			for (int i = 1; i < nProcesses; i++) {
-				int offset = nStep * i + 1;
-				int procMax = nStep * (i + 1);
-
-				MPI_Send(&n, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-				MPI_Send(&offset, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-				MPI_Send(&procMax, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-			}
-
-			for (int i = 2; i <= nStep; i++) {
-				primes[i * n] = false;
-			}
-
-			if (r != 0) {
-				for (int i = limit - r; i < limit; i++) {
-					primes[i * n] = false;
-				}
-			}
-
-			for (int i = 1; i < nProcesses; i++) {
-				MPI_Recv(&iPrimes[0], size, MPI_CHAR, i, 0, MPI_COMM_WORLD, &status);
-
-				for (int j = 2; j < size; j++) {
-					primes[j] = primes[j] && iPrimes[j];
-				}
-			}
-		}
-
-		delete(iPrimes);
-
-		// Final Output
-		cout << "Output: ";
-		int count = 0;
-		for (int i = 2; i <= limit; i++)
-		{
-			if (primes[i])
-			{
-				count++;
-				cout << i << " ";
-			}
-		}
-		cout << endl << endl;
-	}
-	else {
-		int response;
+		bool isOthersPrime = false;
+		int notPrime = -1;
+		
+		//cout << "nLimit -----> " << nLimit << endl;
 
 		do {
-			int currentNumber;
-			int offset, max;
+			
+			isNextPrime = primes[currentNumber];
+			// Receive if the current number is prime for all or not
+			for (int i = 1; i < nProcesses; i++) {
+				MPI_Recv(&isOthersPrime, 1, MPI_CHAR, i, 0, MPI_COMM_WORLD, &status);
 
-			MPI_Recv(&response, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-
-			MPI_Recv(&currentNumber, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-			MPI_Recv(&offset, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-			MPI_Recv(&max, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-
-			offset = fmax(offset, 2);
-
-			for (int i = offset; i <= max; i++) {
-				primes[i * currentNumber] = false;
+				isNextPrime = isNextPrime && isOthersPrime;
 			}
+			
+			//cout << "Decision: " << currentNumber << " --> " << (isNextPrime == true ? "true" : "false") << endl;
+			
+			// Send decision
+			for (int i = 1; i < nProcesses; i++) {
+				MPI_Send(&isNextPrime, 1, MPI_CHAR, i, 0, MPI_COMM_WORLD);
+			}
+			
+			if(isNextPrime)
+			{
+				calculatePrimesFor(limit, rank, nProcesses, currentNumber, primes);
+			}
+			
+			currentNumber++;
+			
+		} while (currentNumber <= nLimit);
+		
+		//cout << "Receiving all primes..." << endl;
+		
+		// Receive full range of "others" primes
+		bool *otherPrimes = new bool[size];
+		for (int i = 1; i < nProcesses; i++) {
+			
+			MPI_Recv(&otherPrimes[0], size, MPI_CHAR, i, 0, MPI_COMM_WORLD, &status);
+			
+			//cout << "Received all primes from " << i << endl;
 
-			MPI_Send(&primes[0], size, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
+			for (int j = 0; j < size; j++) {
+				primes[j] = primes[j] && otherPrimes[j];
+			}
+		}
+		
+		//cout << "All primes received." << endl;
 
-		} while (response != 0);
+		// Print final results
+		printBoolArray(primes, size);
+		
+		delete(otherPrimes);
 	}
+	// Children processes
+	else {
+		do {
+			
+			//cout << "[" << rank << "] will send " << currentNumber << " --> " << (primes[currentNumber] == true ? "true" : "false") << endl;
+			
+			// Send "my" value of currentNumber
+			MPI_Send(&primes[currentNumber], 1, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
+			
+			// Receive parent decision
+			MPI_Recv(&isNextPrime, 1, MPI_CHAR, 0, 0, MPI_COMM_WORLD, &status);
+			
+			//cout << "[" << rank << "] received decision for " << currentNumber << " --> " << (isNextPrime == true ? "true" : "false") << endl;
+
+			if(isNextPrime)
+			{
+				calculatePrimesFor(limit, rank, nProcesses, currentNumber, primes);
+			}
+			
+			currentNumber++;
+			
+		} while (currentNumber <= nLimit);
+		
+		//cout << "Process " << rank << " will send all primes..." << endl;
+
+		// Here we synchronize all primes calculated
+		MPI_Send(&primes[0], size, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
+		
+		//cout << "Process "<< rank << " sent primes..." << endl;
+	}
+	
+	//cout << "Process " << rank << " terminated." << endl;
 
 	delete(primes);
 
@@ -242,21 +156,19 @@ int main(int argc, char **argv) {
 
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-	int limit;
-
-	if (rank == 0) {
-		cout << "Limit: ";
-		cin >> limit;
-
-		for (int i = 1; i < size; i++) {
-			MPI_Send(&limit, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+	
+	if(argc < 2)
+	{
+		if(rank == 0)
+		{
+			cout << "Required limit as argument" << endl;
 		}
-	}
-	else {
-		MPI_Recv(&limit, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
+		
+		return -1;
 	}
 
+	int limit = pow(2, atoi(argv[1]));
+	
 	distributedSieve(limit, rank, size);
 
 	MPI_Finalize();

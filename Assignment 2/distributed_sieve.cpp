@@ -6,13 +6,12 @@
 using namespace std;
 
 #define SYSTEMTIME clock_t
+typedef unsigned long MY_TYPE;
 
-#define MY_TYPE unsigned long long
-
-void printBoolArray(bool *array, int length) {
+void printBoolArray(bool *array, MY_TYPE length) {
 	cout << "Array: ";
 	int count = 0;
-	for (int i = length - 1; count < 10 && i >= 2; i--) {
+	for (MY_TYPE i = length - 1; count < 10 && i >= 2; i--) {
 		if(array[i]) {
 			cout << i << " ";
 			count++;
@@ -21,43 +20,40 @@ void printBoolArray(bool *array, int length) {
 	cout << endl;
 }
 
-int calculatePrimesFor(int limit, int rank, int nProcesses, int currentNumber, bool *primes) {
+int calculatePrimesFor(MY_TYPE limit, int rank, int nProcesses, MY_TYPE currentNumber, bool *primes) {
 
-	int arrayLength = limit + 1;
+	MY_TYPE arrayLength = limit + 1;
 	float calculations = (limit / currentNumber) - 1;
-	int step = (int) ceil(calculations / nProcesses);
+	MY_TYPE step = (MY_TYPE) ceil(calculations / nProcesses);
 	
-	int min = 2 + rank * step;
-	int max = min + step;
+	MY_TYPE min = 2 + rank * step;
+	MY_TYPE max = fmin(min + step, (limit / currentNumber) + 1);
 
-	for (int i = min; i < max; i++) {
-		int index = i * currentNumber;
-		
-		if(index < arrayLength) {
-			primes[index] = false;
-		}
+	for (MY_TYPE i = min; i < max; i++) {
+		MY_TYPE index = i * currentNumber;
+
+		primes[i * currentNumber] = false;
 	}
 	
 	return 0;
 }
 
-int distributedSieve(int limit, int rank, int nProcesses) {
+int distributedSieve(MY_TYPE limit, int rank, int nProcesses) {
 	MPI_Status status;
 
-	int currentNumber = 2;
-	int nLimit = (int)sqrt(limit);
-	int size = limit + 1;
+	MY_TYPE currentNumber = 2;
+	MY_TYPE nLimit = (MY_TYPE)sqrt(limit);
+	MY_TYPE size = limit + 1;
 	bool isNextPrime = true;
 	bool *primes = new bool[size];
 
-	for (int i = 0; i < size; i++) {
+	for (MY_TYPE i = 0; i < size; i++) {
 		primes[i] = true;
 	}
 
 	// Parent process
 	if (rank == 0) {
 		bool isOthersPrime = false;
-		int notPrime = -1;
 		
 		//cout << "nLimit -----> " << nLimit << endl;
 
@@ -80,6 +76,7 @@ int distributedSieve(int limit, int rank, int nProcesses) {
 			
 			if(isNextPrime)
 			{
+				//cout << currentNumber << endl;
 				calculatePrimesFor(limit, rank, nProcesses, currentNumber, primes);
 			}
 			
@@ -97,7 +94,7 @@ int distributedSieve(int limit, int rank, int nProcesses) {
 			
 			//cout << "Received all primes from " << i << endl;
 
-			for (int j = 0; j < size; j++) {
+			for (MY_TYPE j = 0; j < size; j++) {
 				primes[j] = primes[j] && otherPrimes[j];
 			}
 		}
@@ -149,6 +146,7 @@ int distributedSieve(int limit, int rank, int nProcesses) {
 
 int main(int argc, char **argv) {
 
+
 	MPI_Init(&argc, &argv);
 
 	MPI_Status status;
@@ -167,8 +165,8 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	int limit = pow(2, atoi(argv[1]));
-	
+	MY_TYPE limit = (MY_TYPE)pow(2, atoi(argv[1]));
+
 	distributedSieve(limit, rank, size);
 
 	MPI_Finalize();

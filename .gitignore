@@ -214,7 +214,5 @@ pip-log.txt
 
 #Mr Developer
 .mr.developer.cfg
-*.vcxproj
-MatrixMultiplication/MatrixMultiplication/MatrixMultiplication.vcxproj.filters
 *.opendb
 *.db

@@ -2,23 +2,10 @@
 #include <math.h>
 #include <stdlib.h>
 #include "mpi.h"
+#include "primes_calculation.h"
+#include "primes_utilites.h"
 
 using namespace std;
-
-#define SYSTEMTIME clock_t
-typedef unsigned long INDEX_VAR;
-
-void printBoolArray(bool *array, INDEX_VAR length) {
-	cout << "Array: ";
-	int count = 0;
-	for (INDEX_VAR i = length - 1; count < 10 && i >= 2; i--) {
-		if(array[i]) {
-			cout << i << " ";
-			count++;
-		}
-	}
-	cout << endl;
-}
 
 int calculatePrimesFor(INDEX_VAR limit, int rank, int nProcesses, INDEX_VAR currentNumber, bool *primes) {
 

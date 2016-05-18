@@ -2,7 +2,6 @@
 #define PRIMES_UTILITIES_H
 
 #include "types.h"
-#include "primes_calculation.h"
 
 void printTimeSpent(TIME_VAR start, TIME_VAR end);
 

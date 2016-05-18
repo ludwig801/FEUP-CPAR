@@ -2,123 +2,110 @@
 #include <math.h>
 #include <stdlib.h>
 #include "mpi.h"
-#include "primes_calculation.h"
 #include "primes_utilities.h"
+#include "distributed_sieve.h"
 
 using namespace std;
 
-int distributedSieve(INDEX_VAR n, int rank, int nProcesses) {
-	MPI_Status status;
+INDEX_VAR convertToIndex(INDEX_VAR n)
+{
+	return (n - 3) >> 1;
+}
 
-	INDEX_VAR arrayLength = n + 1;
-	PRIMES_ARRAY primes(arrayLength);
-	INDEX_VAR nLimit = (INDEX_VAR)sqrt(n);
-	INDEX_VAR currentNumber = 2;
-	bool isNextPrime = true;
+INDEX_VAR convertIndexToNumber(INDEX_VAR i)
+{
+	return 2 * i + 3;
+}
+
+void distributedSieve(int power) {
 	
-	for (INDEX_VAR i = 0; i < arrayLength; i++)
+	double time = 0;
+	int rank, nProcesses;
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &nProcesses);
+	
+	INDEX_VAR n = pow(2, power);
+	INDEX_VAR blockLow = BLOCK_LOW(rank, n - 1, nProcesses) + 2;
+	INDEX_VAR blockHigh = BLOCK_HIGH(rank, n - 1, nProcesses) + 2;
+	INDEX_VAR blockSize = BLOCK_SIZE(rank, n - 1, nProcesses);
+	
+	bool *primes = new bool[blockSize];
+	for(INDEX_VAR i = 0; i < blockSize; i++) {
 		primes[i] = true;
-
-	// Parent process
-	if (rank == 0) {
-		TIME_VAR start, end;
-		bool isOthersPrime = false;
-		
-		clock_gettime(CLOCK_REALTIME, &start);
-		do {
-			// Check if next is prime
-			isNextPrime = primes[currentNumber];
-			for (int i = 1; i < nProcesses; i++) {
-				MPI_Recv(&isOthersPrime, 1, MPI_CHAR, i, 0, MPI_COMM_WORLD, &status);
-
-				isNextPrime = isNextPrime && isOthersPrime;
-			}
-
-			// Send Decision
-			for (int i = 1; i < nProcesses; i++) {
-				MPI_Send(&isNextPrime, 1, MPI_CHAR, i, 0, MPI_COMM_WORLD);
-			}
-			
-			// Do my part
-			if(isNextPrime)
-				calculatePrimesFor(n, rank, nProcesses, currentNumber, primes);
-			
-			currentNumber++;
-		} while (currentNumber <= nLimit);
-		
-		cout << "Process " << rank << " finished Computation. Will now join data.\n";
-
-		PRIMES_ARRAY otherPrimes(arrayLength);
-		for (int i = 1; i < nProcesses; i++) {
-
-			PRIMES_ARRAY::iterator iter = otherPrimes.begin();
-			MPI_Recv(&iter, (arrayLength / 8), MPI_CHAR, i, 0, MPI_COMM_WORLD, &status);
-			
-			for (INDEX_VAR j = 0; j < arrayLength; j++) {
-				
-				if(i == 1)
-				{
-					cout << "Other primes [" << j << "]: " << otherPrimes[j] << endl;
-				}
-				
-				primes[j] = primes[j] && otherPrimes[j];
-			}
-		}
-
-		clock_gettime(CLOCK_REALTIME, &end);
-		
-		otherPrimes.clear();
-
-		printArray(primes, arrayLength);
-		printTimeSpent(start, end);
-	}
-	// Children processes
-	else {
-		do {
-			// Send my value for the current number
-			bool isNextPrime = primes[currentNumber];
-			MPI_Send(&isNextPrime, 1, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-			
-			// Receive decision
-			MPI_Recv(&isNextPrime, 1, MPI_CHAR, 0, 0, MPI_COMM_WORLD, &status);
-
-			// Do my part
-			if(isNextPrime)
-				calculatePrimesFor(n, rank, nProcesses, currentNumber, primes);
-			
-			currentNumber++;
-		} while (currentNumber <= nLimit);
-
-		cout << "Process " << rank << " finished Computation. Will now join data.\n";
-
-		PRIMES_ARRAY::iterator iter = primes.begin();
-		MPI_Send(&iter, (arrayLength / 8), MPI_CHAR, 0, 0, MPI_COMM_WORLD);
 	}
 	
-	primes.clear();
+	MPI_Barrier(MPI_COMM_WORLD); // Synchronize processes
 
-	return 0;
+	if(rank == 0) {
+		time = -MPI_Wtime();
+	}
+	
+	INDEX_VAR k = 2;
+	INDEX_VAR kSqr = pow(k, 2);
+	INDEX_VAR startValue;
+	
+	while(kSqr <= n) {
+		// calculate the start block value to each process
+		if (kSqr < blockLow) {
+			INDEX_VAR r = (blockLow % k);
+			
+			if(r == 0) {
+				startValue = blockLow;
+			}
+			else {
+				startValue = blockLow + (k - r);
+			}
+					
+		} else {
+			startValue = kSqr;
+		}
+		
+		for(INDEX_VAR i = startValue; i <= blockHigh; i += k) {
+			primes[i - blockLow] = false;
+		}
+		
+		if(rank == 0) {
+			do {
+				k++;
+			} while(!primes[k - blockLow] && pow(k, 2) < blockHigh);
+		}
+		
+		// Send the next prime to other processes
+		MPI_Bcast(&k, 1, MPI_LONG_LONG, 0, MPI_COMM_WORLD);
+		
+		kSqr = pow(k, 2);
+	}
+	
+	INDEX_VAR primeCount = 0;
+	for (INDEX_VAR i = 0; i < blockSize; i++) {
+		if (primes[i]) {
+			primeCount++;
+		}
+	}
+
+	INDEX_VAR totalPrimeCount = primeCount;
+
+	if (nProcesses > 1) {
+		MPI_Reduce(&primeCount, &totalPrimeCount, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+	}
+	
+	if(rank == 0) {
+		time += MPI_Wtime();
+		cout << "Primes: " << totalPrimeCount << endl;
+		cout << "Time spent: " << (time * 1000.0) << "ms\n";
+	}
+	
+	free(primes);
 }
 
 int main(int argc, char **argv) {
-	MPI_Init(&argc, &argv);
-	int rank, size;
-
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	
-	if(argc < 2)
-	{
-		if(rank == 0)
-			cout << "Required limit as argument" << endl;
-		
-		return -1;
-	}
+	INDEX_VAR power = (INDEX_VAR)atoll(argv[1]);
+	
+	MPI_Init(&argc, &argv);
 
-	INDEX_VAR limit = (INDEX_VAR)pow(2, atoi(argv[1]));
-
-	distributedSieve(limit, rank, size);
-
+	distributedSieve(power);
+	
 	MPI_Finalize();
 
 	return 0;

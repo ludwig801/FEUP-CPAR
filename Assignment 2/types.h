@@ -3,9 +3,12 @@
 
 #include <time.h>
 #include <vector>
+#include <iostream>
+#include <iomanip>
+#include <stdlib.h>
 
 typedef std::vector<bool> PRIMES_ARRAY;
-typedef unsigned long long INDEX_VAR;
+typedef long long INDEX_VAR;
 typedef struct timespec TIME_VAR;
 
 #endif

@@ -2,21 +2,17 @@
 #include <omp.h>
 #include <iomanip>
 #include <time.h>
-#include "primes_calculation.h"
 #include "primes_utilities.h"
 
 using namespace std;
 
+void sequentialSieve(INDEX_VAR power) {
 
-int sequentialSieve(INDEX_VAR n) {
-
-	INDEX_VAR arrayLength = n + 1;
-	PRIMES_ARRAY primes(arrayLength);
+	INDEX_VAR n = pow(2, power);
+	INDEX_VAR size = n + 1;
 	INDEX_VAR nLimit = (INDEX_VAR)sqrt(n);
 	TIME_VAR start, end;
-
-	for (INDEX_VAR i = 0; i < arrayLength; i++)
-		primes[i] = true;
+	bool *primes = createBoolArray(size);
 
 	clock_gettime(CLOCK_REALTIME, &start);
 	for (INDEX_VAR i = 2; i <= nLimit; i++) {
@@ -24,34 +20,42 @@ int sequentialSieve(INDEX_VAR n) {
 		if (!primes[i])
 			continue;
 
-		calculatePrimesFor(n, 0, 1, i, primes);
+		runSieve(i, 0, size, primes);
 	}
 	clock_gettime(CLOCK_REALTIME, &end);
+
+	INDEX_VAR primeCount = 0;
+	for(INDEX_VAR i = size - 1; i >= 2; i--) {
+		if(primes[i]) {
+			primeCount++;
+			if(primeCount < 10) {
+				cout << i << " ";
+			}
+		}
+	}
+	cout << endl;
+	cout << "Primes: " << primeCount << endl;
 	
-	printArray(primes, arrayLength);
-	printTimeSpent(start, end);
-
-	primes.clear();
-
-	return 0;
+	double deltaTime = (end.tv_sec - start.tv_sec) * 1000.0 + ((end.tv_nsec - start.tv_nsec) / 1000000.0);
+	
+	cout << "Time spent: " << setprecision(6) << fixed << deltaTime << "ms" << endl;
+	
+	free(primes);
 }
 
-int parallelSieve(INDEX_VAR n, INDEX_VAR numThreads) {
+void parallelSieve(INDEX_VAR power, INDEX_VAR numThreads) {
 
-	INDEX_VAR arrayLength = n + 1;
-	PRIMES_ARRAY primes(arrayLength);
+	INDEX_VAR n = pow(2, power);
 	INDEX_VAR nLimit = (INDEX_VAR)sqrt(n);
+	INDEX_VAR size = n + 1;
 	double start, end;
-	
-	for (INDEX_VAR i = 0; i < arrayLength; i++)
-		primes[i] = true;
+	bool *primes = createBoolArray(size);
 
 	omp_set_dynamic(0);
 	if(omp_get_dynamic())
 	{
 		cout << "Warning: Dinamic allocation of processors is still active!\n";
 	}
-	
 	omp_set_num_threads(numThreads);
 
 	start = omp_get_wtime();
@@ -62,17 +66,31 @@ int parallelSieve(INDEX_VAR n, INDEX_VAR numThreads) {
 
 #pragma omp parallel num_threads(numThreads)
 		{
-			calculatePrimesFor(n, omp_get_thread_num(), omp_get_num_threads(), i, primes);
+			int tid = omp_get_thread_num();
+			// +2 --> compensate for [0,1], which we don't want to consider anyway
+			INDEX_VAR blockLow = 2 + BLOCK_LOW(tid, n - 1, numThreads);
+			INDEX_VAR blockHigh = 2 + BLOCK_HIGH(tid, n - 1, numThreads);
+
+			runSieve(i, blockLow, blockHigh, &(primes[blockLow]));
 		}
 	}
 	end = omp_get_wtime();
+	
+	INDEX_VAR primeCount = 0;
+	for(INDEX_VAR i = size - 1; i >= 2; i--) {
+		if(primes[i]) {
+			primeCount++;
+			if(primeCount < 10) {
+				cout << i << " ";
+			}
+		}
+	}
+	cout << endl;
+	cout << "Primes: " << primeCount << endl;
 
-	printArray(primes, arrayLength);
-	printTimeSpent(start, end);
-
-	primes.clear();
-
-	return 0;
+	cout << "Time spent: " << setprecision(6) << fixed << (double)((end - start) * 1000.0) << "ms" << endl;
+	
+	free(primes);
 }
 
 int main() {
@@ -91,8 +109,6 @@ int main() {
 		cout << "Limit: pow(2,n)" << endl;
 		cout << "n? ";
 		cin >> n;
-
-		n = pow(2, n);
 
 		switch (algorithm) {
 

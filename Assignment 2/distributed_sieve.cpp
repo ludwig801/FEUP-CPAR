@@ -1,9 +1,7 @@
 #include <iostream>
-#include <math.h>
 #include <stdlib.h>
 #include "mpi.h"
 #include "primes_utilities.h"
-#include "distributed_sieve.h"
 
 using namespace std;
 
@@ -25,14 +23,11 @@ void distributedSieve(int power) {
 	MPI_Comm_size(MPI_COMM_WORLD, &nProcesses);
 	
 	INDEX_VAR n = pow(2, power);
-	INDEX_VAR blockLow = BLOCK_LOW(rank, n - 1, nProcesses) + 2;
-	INDEX_VAR blockHigh = BLOCK_HIGH(rank, n - 1, nProcesses) + 2;
+	INDEX_VAR blockLow = 2 + BLOCK_LOW(rank, n - 1, nProcesses); // compensate for [0,1], which we don't want to consider anyway
+	INDEX_VAR blockHigh = 2 + BLOCK_HIGH(rank, n - 1, nProcesses); // compensate for [0,1], which we don't want to consider anyway
 	INDEX_VAR blockSize = BLOCK_SIZE(rank, n - 1, nProcesses);
 	
-	bool *primes = new bool[blockSize];
-	for(INDEX_VAR i = 0; i < blockSize; i++) {
-		primes[i] = true;
-	}
+	bool *primes = createBoolArray(blockSize);
 	
 	MPI_Barrier(MPI_COMM_WORLD); // Synchronize processes
 
@@ -41,39 +36,16 @@ void distributedSieve(int power) {
 	}
 	
 	INDEX_VAR k = 2;
-	INDEX_VAR kSqr = pow(k, 2);
-	INDEX_VAR startValue;
-	
-	while(kSqr <= n) {
-		// calculate the start block value to each process
-		if (kSqr < blockLow) {
-			INDEX_VAR r = (blockLow % k);
-			
-			if(r == 0) {
-				startValue = blockLow;
-			}
-			else {
-				startValue = blockLow + (k - r);
-			}
-					
-		} else {
-			startValue = kSqr;
-		}
-		
-		for(INDEX_VAR i = startValue; i <= blockHigh; i += k) {
-			primes[i - blockLow] = false;
-		}
+	while(pow(k, 2) <= n) {
+		runSieve(k, blockLow, blockHigh, primes);
 		
 		if(rank == 0) {
 			do {
 				k++;
 			} while(!primes[k - blockLow] && pow(k, 2) < blockHigh);
 		}
-		
-		// Send the next prime to other processes
+	
 		MPI_Bcast(&k, 1, MPI_LONG_LONG, 0, MPI_COMM_WORLD);
-		
-		kSqr = pow(k, 2);
 	}
 	
 	INDEX_VAR primeCount = 0;
